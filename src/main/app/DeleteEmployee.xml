@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd">
+    <flow name="DeleteEmployeeFlow">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/delete-employee" allowedMethods="GET" doc:name="HTTP"/>
+        <logger message="Started the delete employee flow and received query param:#[message.inboundProperties.'http.query.params'.empID]" level="INFO" doc:name="Start Log"/>
+        <db:delete config-ref="Oracle_Configuration" doc:name="Database">
+            <db:parameterized-query><![CDATA[delete from employee where employeeid=#[message.inboundProperties.'http.query.params'.empID]]]></db:parameterized-query>
+        </db:delete>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload resource="classpath:Success.dwl"/>
+            
+        </dw:transform-message>
+        <string-to-byte-array-transformer returnClass="java.util.Map" doc:name="String to Byte Array"/>
+    </flow>
+     <flow name="DeleteProcedureCallFlow">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/delete-employee/{empID}" allowedMethods="GET" doc:name="HTTP"/>
+        <logger message="Started the delete procedure call flow and received the uri param:#[message.inboundProperties.'http.uri.params'.empID]" level="INFO" doc:name="Start Log"/>
+        <set-variable variableName="procedurename" value="deleteDBUSER" doc:name="Variable"/>
+        <set-session-variable variableName="employeeID" value="#[message.inboundProperties.'http.uri.params'.empID]" doc:name="Session Variable"/>
+        <db:stored-procedure config-ref="Oracle_Configuration" doc:name="Database">
+            <db:dynamic-query><![CDATA[{call #[flowVars.procedurename](#[flowVars.employeeID)}]]></db:dynamic-query>
+        </db:stored-procedure>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload resource="classpath:Success.dwl"/>
+        </dw:transform-message>
+    </flow>
+</mule>

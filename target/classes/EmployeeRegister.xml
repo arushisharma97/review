@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw"
+	xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+    
+    <db:oracle-config name="Oracle_Configuration" host="localhost" port="1521" instance="XE" user="system" password="Oracle@123" doc:name="Oracle Configuration"/>
+    <flow name="EmployeeRegisterFlow">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/register" allowedMethods="POST" doc:name="HTTP"/>
+        <logger message="Started employee register flow and received json object:#[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Start Log"/>
+        <json:json-to-object-transformer returnClass="java.util.Map" doc:name="JSON to Object"/>
+        <validation:all doc:name="Validation">
+            <validation:validations>
+                <validation:is-not-null value="#[payload.empID]" message="Employee ID should not be null"/>
+            </validation:validations>
+        </validation:all>
+        <db:insert config-ref="Oracle_Configuration" doc:name="Database">
+            <db:parameterized-query><![CDATA[insert into employee(employeeid,employeename,gender,age) values(#[payload.EmployeeID],#[payload.EmployeeName],#[payload.Gender],#[payload.Age])]]></db:parameterized-query>
+        </db:insert>
+        <logger message="Converted to java object:#[payload.empID] and #[payload.empName]" level="INFO" doc:name="Logger"/>
+        <catch-exception-strategy doc:name="Catch Exception Strategy" when="#[exception.causedBy(org.mule.extension.validation.api.MultipleValidationException)]">
+                <logger  level="INFO" doc:name="Logger"/>
+                <set-variable variableName="errormessage" value="#[exception.cause.?message or exception.cause]" doc:name="Variable"/>
+                <dw:transform-message doc:name="Transform Message">
+                    <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+{
+	Status:400,
+	Message:exception.cause
+}]]></dw:set-payload>
+                </dw:transform-message>
+                <set-property propertyName="http.reason" value="#[flowVars.errormessage]" doc:name="Property"/>
+                <set-property propertyName="http.status" value="400" doc:name="Property"/>
+            </catch-exception-strategy>
+    </flow>
+</mule>

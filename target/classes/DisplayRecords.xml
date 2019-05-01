@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:metadata="http://www.mulesoft.org/schema/mule/metadata" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd">
+    <flow name="DisplayRecordsFlow">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/fetch" allowedMethods="GET" doc:name="HTTP"/>
+        <logger message="Started display records flow" level="INFO" doc:name="Start Log"/>
+        <db:select config-ref="Oracle_Configuration" doc:name="Fetch From Employee">
+            <db:parameterized-query><![CDATA[select employeeid "empID",employeename "empName",gender "empGender",age "empAge" from employee]]></db:parameterized-query>
+        </db:select>
+        <choice doc:name="Choice">
+            <when expression="payload.size()&gt;0">
+                <logger message="The data is #[message.payloadAs(java.lang.String)]" level="INFO" doc:name="After transformation"/>
+                <dw:transform-message doc:name="Transform Message" metadata:id="3e5f245b-9ea5-4ef8-87f9-11e05af339a2">
+                    <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+payload map ((payload01 , indexOfPayload01) -> {
+	empid: payload01.empID as :number,
+	empname: payload01.empName,
+	empgender: payload01.empGender,
+	empage: payload01.empAge as :number
+})]]></dw:set-payload>
+                </dw:transform-message>
+            </when>
+            <otherwise>
+                <logger level="INFO" doc:name="Logger"/>
+                <set-property propertyName="http.status" value="400" doc:name="Property"/>
+                <set-property propertyName="http.reason" value="&quot;No Data Found&quot;" doc:name="Property"/>
+            </otherwise>
+        </choice>
+    </flow>
+</mule>

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:metadata="http://www.mulesoft.org/schema/mule/metadata" xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+    <flow name="UpdateEmployeeFlow">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/update-employee" allowedMethods="POST" doc:name="HTTP"/>
+        <logger message="Started update employee flow and recieved xml payload:#[message.payloadAs(java.lang.String)]" level="INFO" doc:name="Start Log"/>
+        <dw:transform-message doc:name="Transform Message" metadata:id="02b4ab3f-ab2d-4617-8c0c-246e7a8260ad">
+            <dw:input-payload />
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/java
+---
+{
+	empID: payload.employee.empid,
+	empName: payload.employee.empname,
+	gender: payload.employee.empgender,
+	age: payload.employee.age
+}]]></dw:set-payload>
+        </dw:transform-message>
+        <validation:all doc:name="Validation">
+            <validation:validations>
+                <validation:is-not-null value="#[payload.empID]" message="Employee ID should not be null"/>
+            </validation:validations>
+        </validation:all>
+        <db:update config-ref="Oracle_Configuration" doc:name="Update Table Employee">
+            <db:parameterized-query><![CDATA[update employee set gender=#[payload.gender] where employeeid=#[payload.empID]]]></db:parameterized-query>
+        </db:update>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+{
+	"status":200,
+	"message":"Success"
+}]]></dw:set-payload>
+        </dw:transform-message>
+        <rollback-exception-strategy maxRedeliveryAttempts="2" when="#[exception.causedBy(org.mule.extension.validation.api.MultipleValidationException)]" doc:name="Rollback Exception Strategy">
+            <logger message="Error occured" level="INFO" doc:name="Logger"/>
+        </rollback-exception-strategy>
+    </flow>
+</mule>
